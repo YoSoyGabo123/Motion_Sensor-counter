@@ -47,8 +47,8 @@ def main():
                 print("Person detected!")
                 people_count += 1
                 print(f"People count: {people_count}")
-                time.sleep(1)  # Delay to avoid counting the same person multiple times
-            time.sleep(0.5)  # Measurement interval
+                time.sleep(0.001)  # Delay to avoid counting the same person multiple times
+            time.sleep(0.0005)  # Measurement interval
 
     except KeyboardInterrupt:
         print("Measurement stopped by User")
