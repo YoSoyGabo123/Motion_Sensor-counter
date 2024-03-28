@@ -6,13 +6,11 @@ from datetime import datetime
 # Set GPIO Pins
 GPIO_TRIGGER = 23
 GPIO_ECHO = 24
-GPIO_PIR = 17  # Assuming the PIR sensor is connected to GPIO 17
 
 # Set GPIO direction (IN / OUT)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(GPIO_TRIGGER, GPIO.OUT)
 GPIO.setup(GPIO_ECHO, GPIO.IN)
-GPIO.setup(GPIO_PIR, GPIO.IN)  # PIR sensor set as input
 
 def distance():
     # Set Trigger to HIGH
@@ -47,7 +45,7 @@ def write_to_csv(index, date_time, milliseconds, detections):
 
 def main():
     people_count = 0
-    temp_count = 0
+    detections_within_interval = 0
     start_time = time.time()
     csv_index = 0  # To keep track of each entry's index
     
@@ -58,29 +56,25 @@ def main():
     
     try:
         while True:
-            if GPIO.input(GPIO_PIR):  # If PIR sensor detects motion
-                current_time = time.time()
-                
-                if current_time - start_time >= 0.7:
-                    if temp_count > 0:  # If there were detections within the interval
-                        people_count += 1
-                        print(f"People count: {people_count}")
-                        # Log to CSV
-                        current_milliseconds = int((current_time - start_time) * 1000)
-                        write_to_csv(csv_index, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), current_milliseconds, temp_count)
-                        csv_index += 1
-                    # Reset for the next interval
-                    temp_count = 0
-                    start_time = current_time
-                
-                dist = distance()
-                print(f"Measured Distance = {dist} cm")
-                temp_count += 1
-                
-                time.sleep(0.05)  # Short sleep to reduce CPU load
-            else:
-                # If no motion is detected by PIR, check again after a short delay
-                time.sleep(0.1)
+            current_time = time.time()
+            if current_time - start_time >= 0.7:
+                if detections_within_interval > 0:  # If there were detections within the interval
+                    people_count += 1
+                    print(f"People count: {people_count}")
+                    # Log to CSV
+                    current_milliseconds = int((current_time - start_time) * 1000)
+                    write_to_csv(csv_index, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), current_milliseconds, detections_within_interval)
+                    csv_index += 1
+                # Reset for the next interval
+                detections_within_interval = 0
+                start_time = current_time
+            
+            dist = distance()
+            print(f"Measured Distance = {dist} cm")
+            if dist < 100:  # Assuming an object is detected within 100 cm
+                detections_within_interval += 1
+            
+            time.sleep(0.05)  # Short sleep to reduce CPU load
     
     except KeyboardInterrupt:
         print("Measurement stopped by User")
@@ -88,4 +82,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
