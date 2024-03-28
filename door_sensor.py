@@ -38,41 +38,39 @@ def distance():
     
     return distance
 
-def write_to_csv(index, date_time, milliseconds, detections):
-    with open('people_log.csv', mode='a', newline='') as file:
+def write_to_csv(filename, data):
+    with open(filename, mode='a', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow([index, date_time, milliseconds, detections])
+        # If file is empty, add headers
+        if file.tell() == 0:
+            writer.writerow(["Index", "Date and Time", "Time in Milliseconds", "Detections per Person"])
+        writer.writerows(data)  # Write all data rows
 
 def main():
-    people_count = 0
-    detections_within_interval = 0
+    detections_within_interval = []
     start_time = time.time()
-    csv_index = 0  # To keep track of each entry's index
-    
-    # Create or overwrite the CSV file with headers
-    with open('people_log.csv', mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(["Index", "Date and Time", "Time in Milliseconds", "Detections per Person"])
+    minute_start = start_time
     
     try:
         while True:
             current_time = time.time()
-            if current_time - start_time >= 1:
-                if detections_within_interval > 0:  # If there were detections within the interval
-                    people_count += 1
-                    print(f"People count: {people_count}")
-                    # Log to CSV
-                    current_milliseconds = int((current_time - start_time) * 1000)
-                    write_to_csv(csv_index, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), current_milliseconds, detections_within_interval)
-                    csv_index += 1
-                # Reset for the next interval
-                detections_within_interval = 0
-                start_time = current_time
+            
+            # Check if a minute has passed
+            if current_time - minute_start >= 60:
+                # Generate filename based on the current time
+                filename = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_people_log.csv")
+                # Write the data collected in the last minute to the new file
+                write_to_csv(filename, detections_within_interval)
+                # Reset for the next minute
+                detections_within_interval = []
+                minute_start = current_time
             
             dist = distance()
-            print(f"Measured Distance = {dist} cm")
             if dist < 100:  # Assuming an object is detected within 100 cm
-                detections_within_interval += 1
+                # Collect detection data
+                detection_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                milliseconds = int((current_time - start_time) * 1000)
+                detections_within_interval.append([milliseconds, detection_time, milliseconds, 1])
             
             time.sleep(0.05)  # Short sleep to reduce CPU load
     
@@ -82,5 +80,6 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 
 
