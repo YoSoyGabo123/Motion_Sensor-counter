@@ -39,7 +39,7 @@ def distance():
     return distance
 
 def write_to_csv(index, date_time, milliseconds, detections):
-    with open('/mnt/data/people_log.csv', mode='a', newline='') as file:
+    with open('people_log.csv', mode='a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([index, date_time, milliseconds, detections])
 
@@ -50,14 +50,14 @@ def main():
     csv_index = 0  # To keep track of each entry's index
     
     # Create or overwrite the CSV file with headers
-    with open('/mnt/data/people_log.csv', mode='w', newline='') as file:
+    with open('people_log.csv', mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Index", "Date and Time", "Time in Milliseconds", "Detections per Person"])
     
     try:
         while True:
             current_time = time.time()
-            if current_time - start_time >= 0.7:
+            if current_time - start_time >= 1:
                 if detections_within_interval > 0:  # If there were detections within the interval
                     people_count += 1
                     print(f"People count: {people_count}")
