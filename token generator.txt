@@ -1,0 +1,7 @@
+https://login.microsoftonline.com/{organizations}/oauth2/v2.0/authorize?
+client_id={abfcdf18-dbb3-4fbd-8df5-39a5c8cc0a40}&
+response_type=code&
+redirect_uri={https://login.microsoftonline.com/common/oauth2/nativeclient}&
+response_mode=query&
+scope={offline_access}&
+state={c31E3GB6sMTq-FRpeIlaEvSU1GpuPLHql7Ir0vG2lZM}

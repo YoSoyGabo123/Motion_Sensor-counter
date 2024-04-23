@@ -1,91 +1,172 @@
 import RPi.GPIO as GPIO
 import time
-from flask import Flask, request, redirect, url_for, session
-from msal import PublicClientApplication
-import requests
+import csv
+from datetime import datetime
 
-# Initialize Flask app
-app = Flask(__name__)
-
-# GPIO setup
+# Set GPIO Pins
 GPIO_TRIGGER = 23
 GPIO_ECHO = 24
+
+# Set GPIO direction (IN / OUT)
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(GPIO_TRIGGER, GPIO.OUT)
 GPIO.setup(GPIO_ECHO, GPIO.IN)
 
-# Microsoft OAuth setup
-CLIENT_ID = 'd8ba1988-3e0e-40a0-897a-bcedd473cef4'
-CLIENT_SECRET = 'b85b5ee5-fa50-4bc5-9f33-48935807cc64'
-TENANT_ID = '481fc41f-8618-44cb-aa7e-4947d7e665a2'
-AUTHORITY = f'https://login.microsoftonline.com/{TENANT_ID}'
-SCOPE = ['Files.ReadWrite.All']
-REDIRECT_URI = 'https://laverne-my.sharepoint.com/:x:/r/personal/gpalacios_laverne_edu/Documents/door%20counter.xlsx?d=w22c233274a5e4123b96361250327e948&csf=1&web=1&e=Oyitm5'
-EXCEL_URL = 'https://laverne-my.sharepoint.com/:x:/r/personal/gpalacios_laverne_edu/Documents/door%20counter.xlsx?d=w22c233274a5e4123b96361250327e948&csf=1&web=1&e=Oyitm5'
-
-# Initialize MSAL
-msal_app = PublicClientApplication(CLIENT_ID, authority=AUTHORITY, client_credential=CLIENT_SECRET)
-people_count = 0
-
 def distance():
-    """ Measure distance using ultrasonic sensor. """
+    # Set Trigger to HIGH
     GPIO.output(GPIO_TRIGGER, True)
+    # Set Trigger after 0.01ms to LOW
     time.sleep(0.00001)
     GPIO.output(GPIO_TRIGGER, False)
-    start_time = time.time()
-    stop_time = start_time
     
+    StartTime = time.time()
+    StopTime = time.time()
+    
+    # Save StartTime
     while GPIO.input(GPIO_ECHO) == 0:
-        start_time = time.time()
+        StartTime = time.time()
     
+    # Save time of arrival
     while GPIO.input(GPIO_ECHO) == 1:
-        stop_time = time.time()
+        StopTime = time.time()
     
-    time_elapsed = stop_time - start_time
-    return (time_elapsed * 34300) / 2
+    # Time difference between start and arrival
+    TimeElapsed = StopTime - StartTime
+    # Multiply with the sonic speed (34300 cm/s)
+    # and divide by 2, because there and back
+    distance = (TimeElapsed * 34300) / 2
+    
+    return distance
 
-@app.route('/')
-def home():
-    """ Redirect to Microsoft login for OAuth """
-    auth_url = msal_app.get_authorization_request_url(SCOPE, redirect_uri=REDIRECT_URI)
-    return redirect(auth_url)
+def write_to_csv(index, date_time, milliseconds, detections):
+    with open('people_log.csv', mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([index, date_time, milliseconds, detections])
 
-@app.route('/callback')
-def callback():
-    """ Handle OAuth callback, exchange code for token """
-    code = request.args.get('code')
-    result = msal_app.acquire_token_by_authorization_code(code, scopes=SCOPE, redirect_uri=REDIRECT_URI)
-    if "access_token" in result:
-        session['access_token'] = result['access_token']
-        return redirect(url_for('log_data'))
-    else:
-        return "Error: Failed to authenticate with Microsoft."
-
-@app.route('/log_data')
-def log_data():
-    """ Monitor distance and log to Excel Online when people count increases. """
-    global people_count
-    access_token = session.get('access_token')
-    headers = {'Authorization': f'Bearer {access_token}', 'Content-Type': 'application/json'}
+def main():
+    people_count = 0
+    detections_within_interval = 0
+    start_time = time.time()
+    csv_index = 0  # To keep track of each entry's index
+    
+    # Create or overwrite the CSV file with headers
+    with open('people_log.csv', mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Index", "Date and Time", "Time in Milliseconds", "Detections per Person"])
     
     try:
         while True:
+            current_time = time.time()
+            if current_time - start_time >= 1:
+                if detections_within_interval > 0:  # If there were detections within the interval
+                    people_count += 1
+                    print(f"People count: {people_count}")
+                    # Log to CSV
+                    current_milliseconds = int((current_time - start_time) * 1000)
+                    write_to_csv(csv_index, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), current_milliseconds, detections_within_interval)
+                    csv_index += 1
+                # Reset for the next interval
+                detections_within_interval = 0
+                start_time = current_time
+            
             dist = distance()
             print(f"Measured Distance = {dist} cm")
-            if dist < 100:  # Detection threshold
-                new_people_count = people_count + 1
-                if new_people_count != people_count:
-                    people_count = new_people_count
-                    data = {'values': [[people_count]]}
-                    response = requests.patch(EXCEL_URL, headers=headers, json=data)
-                    if response.status_code == 200:
-                        print("People count updated successfully.")
-            time.sleep(1)  # Check every second
+            if dist < 100:  # Assuming an object is detected within 100 cm
+                detections_within_interval += 1
+            
+            time.sleep(0.05)  # Short sleep to reduce CPU load
+    
     except KeyboardInterrupt:
-        print("Logging stopped by user.")
+        print("Measurement stopped by User")
         GPIO.cleanup()
-    return "Data logging completed."
 
 if __name__ == '__main__':
-    app.secret_key = 'your-secret-key'  # Needed for session management
-    app.run(debug=True)
+    main()
+
+
+
+    import RPi.GPIO as GPIO
+import time
+import csv
+from datetime import datetime
+
+# Set GPIO Pins
+GPIO_TRIGGER = 23
+GPIO_ECHO = 24
+
+# Set GPIO direction (IN / OUT)
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(GPIO_TRIGGER, GPIO.OUT)
+GPIO.setup(GPIO_ECHO, GPIO.IN)
+
+def distance():
+    # Set Trigger to HIGH
+    GPIO.output(GPIO_TRIGGER, True)
+    # Set Trigger after 0.01ms to LOW
+    time.sleep(0.00001)
+    GPIO.output(GPIO_TRIGGER, False)
+    
+    StartTime = time.time()
+    StopTime = time.time()
+    
+    # Save StartTime
+    while GPIO.input(GPIO_ECHO) == 0:
+        StartTime = time.time()
+    
+    # Save time of arrival
+    while GPIO.input(GPIO_ECHO) == 1:
+        StopTime = time.time()
+    
+    # Time difference between start and arrival
+    TimeElapsed = StopTime - StartTime
+    # Multiply with the sonic speed (34300 cm/s)
+    # and divide by 2, because there and back
+    distance = (TimeElapsed * 34300) / 2
+    
+    return distance
+
+def write_to_csv(index, date_time, milliseconds, detections):
+    with open('people_log.csv', mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([index, date_time, milliseconds, detections])
+
+def main():
+    people_count = 0
+    detections_within_interval = 0
+    start_time = time.time()
+    csv_index = 0  # To keep track of each entry's index
+    last_saved_time = time.time()  # Initialize the last saved time
+    
+    # Create or overwrite the CSV file with headers
+    with open('people_log.csv', mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(["Index", "Date and Time", "Time in Milliseconds", "Detections per Person"])
+    
+    try:
+        while True:
+            current_time = time.time()
+            if current_time - start_time >= 1:
+                dist = distance()
+                print(f"Measured Distance = {dist} cm")
+                if dist < 100:  # Assuming an object is detected within 100 cm
+                    detections_within_interval += 1
+                # Log to CSV every 30 minutes
+                if current_time - last_saved_time >= 1800:
+                    if detections_within_interval > 0:  # If there were detections within the interval
+                        people_count += 1
+                        print(f"People count: {people_count}")
+                        # Log to CSV
+                        current_milliseconds = int((current_time - last_saved_time) * 1000)
+                        write_to_csv(csv_index, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), current_milliseconds, detections_within_interval)
+                        csv_index += 1
+                    # Reset for the next interval
+                    detections_within_interval = 0
+                    last_saved_time = current_time
+                time.sleep(0.05)  # Short sleep to reduce CPU load
+    
+    except KeyboardInterrupt:
+        print("Measurement stopped by User")
+        GPIO.cleanup()
+
+if __name__ == '__main__':
+    main()
